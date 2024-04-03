@@ -60,7 +60,7 @@ def perform_product_search(query_vector):
                 VectorQuery('vector', query_vector, num_candidates=5)
             )
         )
-        result = bucket.default_scope().search(search_index, search_req, search.SearchOptions(limit=5, fields=["productName", "description"]))
+        result = bucket.default_scope().search(search_index, search_req, search.SearchOptions(limit=5, fields=["productName", "description", "score"]))
         return result
     except CouchbaseException as e:
         st.error(f"Product search failed: {e}")
@@ -73,7 +73,23 @@ def load_sample_data():
     return products
 
 def main():
-    st.title("Banking Product Recommendation System")
+    # st.title("Product Recommendation System")
+    st.markdown("""
+    <style>
+    .title-font {
+        font-size: 28px;
+        font-weight: bold;
+    }
+    .powered-font {
+        color: red;
+        font-size: 20px;
+    }
+    </style>
+    <div>
+        <span class="title-font">Product Recommendation System</span><br>
+        <span class="powered-font">Powered By Couchbase Vector Search</span>
+    </div>
+    """, unsafe_allow_html=True)
     connect_to_couchbase()
 
     # Optionally: Load and insert products into Couchbase (comment out if already done)
@@ -86,7 +102,7 @@ def main():
         results = perform_product_search(query_vector)
         if results and results.rows():
             for row in results.rows():
-                st.write(row.fields.get('productName'), "-", row.fields.get('description'))
+                st.write(row.fields.get('productName'), "-", row.fields.get('description'), "-", row.score)
         else:
             st.write("No products found matching your query.")
 
