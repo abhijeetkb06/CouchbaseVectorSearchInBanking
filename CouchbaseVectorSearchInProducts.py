@@ -40,6 +40,10 @@ def insert_products_into_couchbase(products):
     if not bucket:
         return
     try:
+        # Check if data has already been loaded to avoid redundancy by checking the first product's existence
+        if bucket.default_collection().exists(products[0]['productId']).exists:
+            # st.info("Sample data already loaded. Skipping re-insertion.")
+            return
         for product in products:
             key = product['productId']
             product['vector'] = vectorize_description(product['description'])
