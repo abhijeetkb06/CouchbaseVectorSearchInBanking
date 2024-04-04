@@ -22,9 +22,9 @@ def connect_to_couchbase():
     global cluster, bucket
     if cluster is None or bucket is None:
         try:
-            cluster = Cluster('couchbases://cb.lxeog4g4jkunkcyg.cloud.couchbase.com',
+            cluster = Cluster('couchbases://cb.iehmn9k8ggm0tr5i.cloud.couchbase.com',
                               ClusterOptions(PasswordAuthenticator('admin', 'Password@P1')))
-            cluster.wait_until_ready(timedelta(seconds=5))
+            cluster.wait_until_ready(timedelta(seconds=10))
             bucket = cluster.bucket('products')
             st.info("Connected to Couchbase.")
         except CouchbaseException as e:
@@ -77,7 +77,6 @@ def load_sample_data():
     return products
 
 def main():
-    # st.title("Product Recommendation System")
     st.markdown("""
     <style>
     .title-font {
@@ -87,6 +86,13 @@ def main():
     .powered-font {
         color: red;
         font-size: 20px;
+    }
+    .product-name {
+        color: #6495ED; 
+        font-weight: bold;
+    }
+    .score-color {
+        color: #00FFD1; 
     }
     </style>
     <div>
@@ -106,9 +112,14 @@ def main():
         results = perform_product_search(query_vector)
         if results and results.rows():
             for row in results.rows():
-                st.write(row.fields.get('productName'), "-", row.fields.get('description'), "-", row.score)
+                # Use markdown for product name to apply green color and score to apply light blue color
+                product_name_html = f"<span class='product-name'>{row.fields.get('productName')}</span>"
+                score_html = f"<span class='score-color'>Score: {row.score}</span>"
+                st.markdown(f"{product_name_html} - {row.fields.get('description')} - {score_html}", unsafe_allow_html=True)
         else:
             st.write("No products found matching your query.")
 
 if __name__ == "__main__":
     main()
+
+
