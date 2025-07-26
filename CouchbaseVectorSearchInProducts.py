@@ -13,7 +13,7 @@ import numpy as np
 # Initialize the NLP model globally to avoid reloading it on each function call
 model = SentenceTransformer('all-MiniLM-L6-v2')
 
-# Define global variables for Couchbase connection
+# Define  variables for Couchbase connection
 cluster = None
 bucket = None
 
@@ -23,7 +23,7 @@ def connect_to_couchbase():
     if cluster is None or bucket is None:
         try:
             cluster = Cluster('couchbases://cb.puo-rfi1metq3bnn.cloud.couchbase.com',
-                              ClusterOptions(PasswordAuthenticator('admin', 'Password@P')))
+                              ClusterOptions(PasswordAuthenticator('admin', 'Password@P1')))
             cluster.wait_until_ready(timedelta(seconds=10))
             bucket = cluster.bucket('products')
             st.info("Connected to Couchbase.")
