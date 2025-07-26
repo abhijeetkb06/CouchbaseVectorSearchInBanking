@@ -1,71 +1,96 @@
+import streamlit as st
+import json
+from datetime import timedelta
+from langchain_couchbase.vectorstores import CouchbaseSearchVectorStore
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.documents import Document
 from couchbase.cluster import Cluster
 from couchbase.options import ClusterOptions
 from couchbase.auth import PasswordAuthenticator
 from couchbase.exceptions import CouchbaseException
-import streamlit as st
-from sentence_transformers import SentenceTransformer
-from datetime import timedelta
-import couchbase.search as search
-from couchbase.vector_search import VectorQuery, VectorSearch
-import json
-import numpy as np
 
-# Initialize the NLP model globally to avoid reloading it on each function call
-model = SentenceTransformer('all-MiniLM-L6-v2')
+# Initialize the same embedding model you were using
+embeddings = HuggingFaceEmbeddings(model_name='all-MiniLM-L6-v2')
 
 # Define global variables for Couchbase connection
 cluster = None
-bucket = None
+vector_store = None
 
 def connect_to_couchbase():
-    """Establishes connection to the Couchbase cluster and bucket."""
-    global cluster, bucket
-    if cluster is None or bucket is None:
+    """Establishes connection to the Couchbase cluster and initializes vector store."""
+    global cluster, vector_store
+    if cluster is None or vector_store is None:
         try:
-            cluster = Cluster('couchbases://cb.puo-rfi1metq3bnn.cloud.couchbase.com',
-                              ClusterOptions(PasswordAuthenticator('admin', 'Password@P')))
+            # Connection setup following official LangChain docs
+            auth = PasswordAuthenticator('admin', 'Password@P1')
+            options = ClusterOptions(auth)
+            cluster = Cluster('couchbases://cb.puo-rfi1metq3bnn.cloud.couchbase.com', options)
             cluster.wait_until_ready(timedelta(seconds=10))
-            bucket = cluster.bucket('products')
-            st.info("Connected to Couchbase.")
+            
+            # Initialize CouchbaseSearchVectorStore
+            vector_store = CouchbaseSearchVectorStore(
+                cluster=cluster,
+                bucket_name='products',
+                scope_name='_default',
+                collection_name='_default',
+                embedding=embeddings,
+                index_name='vector_index',  # Your search index name
+                text_key='description',     # Field containing text content
+                embedding_key='vector'      # Field containing vector embeddings
+            )
+            st.info("Connected to Couchbase with LangChain.")
         except CouchbaseException as e:
             st.error(f"Failed to connect to Couchbase: {e}")
 
-def vectorize_description(description):
-    """Vectorizes product descriptions."""
-    return model.encode(description).tolist()
-
 def insert_products_into_couchbase(products):
-    """Inserts products into Couchbase with vector embeddings."""
-    global bucket
-    if not bucket:
+    """Inserts products into Couchbase using LangChain CouchbaseSearchVectorStore."""
+    global vector_store, cluster
+    if not vector_store:
         return
+    
     try:
-        # Check if data has already been loaded to avoid redundancy by checking the first product's existence
+        # Check if data already exists (same logic as your original)
+        bucket = cluster.bucket('products')
         if bucket.default_collection().exists(products[0]['productId']).exists:
-            # st.info("Sample data already loaded. Skipping re-insertion.")
             return
+            
+        # Convert products to LangChain Documents
+        documents = []
+        ids = []
+        
         for product in products:
-            key = product['productId']
-            product['vector'] = vectorize_description(product['description'])
-            bucket.default_collection().upsert(key, product)
+            # Create Document with description as page_content
+            doc = Document(
+                page_content=product['description'],
+                metadata={
+                    'productId': product['productId'],
+                    'productName': product['productName']
+                }
+            )
+            documents.append(doc)
+            ids.append(product['productId'])
+        
+        # Add documents to vector store (automatically handles vectorization)
+        vector_store.add_documents(documents=documents, ids=ids)
         st.success(f"Loaded {len(products)} products into the database.")
+        
     except CouchbaseException as e:
         st.error(f"Failed to load product data into Couchbase: {e}")
 
-def perform_product_search(query_vector):
-    """Performs a vector search in Couchbase for products matching the query."""
-    global bucket
-    if not bucket:
-        return
-    search_index = 'vector_index'  # Update with your vector search index name
+def perform_product_search(query_text, k=5):
+    """Performs similarity search using LangChain CouchbaseSearchVectorStore."""
+    global vector_store
+    if not vector_store:
+        return None
+    
     try:
-        search_req = search.SearchRequest.create(search.MatchNoneQuery()).with_vector_search(
-            VectorSearch.from_vector_query(
-                VectorQuery('vector', query_vector, num_candidates=5)
-            )
+        # Use similarity_search_with_score (replaces your manual vector search)
+        results = vector_store.similarity_search_with_score(
+            query=query_text,
+            k=k,
+            fields=["productName", "description"]  # Specify fields to return
         )
-        result = bucket.default_scope().search(search_index, search_req, search.SearchOptions(limit=5, fields=["productName", "description", "score"]))
-        return result
+        return results
     except CouchbaseException as e:
         st.error(f"Product search failed: {e}")
         return None
@@ -97,29 +122,32 @@ def main():
     </style>
     <div>
         <span class="title-font">Product Recommendation System</span><br>
-        <span class="powered-font">Powered By Couchbase Vector Search</span>
+        <span class="powered-font">Powered By Couchbase Vector Search & LangChain</span>
     </div>
     """, unsafe_allow_html=True)
+    
     connect_to_couchbase()
 
-    # Optionally: Load and insert products into Couchbase (comment out if already done)
+    # Load and insert products into Couchbase
     products = load_sample_data()
     insert_products_into_couchbase(products)
 
     user_query = st.text_input("What are you looking for?")
     if user_query:
-        query_vector = vectorize_description(user_query)
-        results = perform_product_search(query_vector)
-        if results and results.rows():
-            for row in results.rows():
-                # Use markdown for product name to apply green color and score to apply light blue color
-                product_name_html = f"<span class='product-name'>{row.fields.get('productName')}</span>"
-                score_html = f"<span class='score-color'>Score: {row.score}</span>"
-                st.markdown(f"{product_name_html} - {row.fields.get('description')} - {score_html}", unsafe_allow_html=True)
+        results = perform_product_search(user_query)
+        if results:
+            for doc, score in results:
+                # Extract information from Document and metadata
+                product_name = doc.metadata.get('productName', 'Unknown Product')
+                description = doc.page_content
+                
+                # Format display with same styling as your original
+                product_name_html = f"<span class='product-name'>{product_name}</span>"
+                score_html = f"<span class='score-color'>Score: {score:.4f}</span>"
+                st.markdown(f"{product_name_html} - {description} - {score_html}", 
+                          unsafe_allow_html=True)
         else:
             st.write("No products found matching your query.")
 
 if __name__ == "__main__":
     main()
-
-

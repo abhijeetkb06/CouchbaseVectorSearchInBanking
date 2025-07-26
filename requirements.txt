@@ -1,11 +1,16 @@
 # Couchbase Python SDK with vector search support
-couchbase==4.4
+couchbase==4.4.0
+
+# LangChain packages for Couchbase integration
+langchain-couchbase==0.4.0
+langchain-huggingface==0.3.1
+langchain-core==0.3.72
 
 # Sentence transformer for encoding text into vectors
-sentence-transformers==2.6.1
+sentence-transformers==5.0.0
 
 # Streamlit for building the UI
-streamlit==1.34.0
+streamlit==1.47.1
 
 # Numpy for numerical operations
-numpy==1.26.4
+numpy==2.0.1
