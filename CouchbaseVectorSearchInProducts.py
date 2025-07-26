@@ -22,8 +22,8 @@ def connect_to_couchbase():
     global cluster, bucket
     if cluster is None or bucket is None:
         try:
-            cluster = Cluster('couchbases://cb.iehmn9k8ggm0tr5i.cloud.couchbase.com',
-                              ClusterOptions(PasswordAuthenticator('admin', 'Password@P1')))
+            cluster = Cluster('couchbases://cb.puo-rfi1metq3bnn.cloud.couchbase.com',
+                              ClusterOptions(PasswordAuthenticator('admin', 'Password@P')))
             cluster.wait_until_ready(timedelta(seconds=10))
             bucket = cluster.bucket('products')
             st.info("Connected to Couchbase.")
