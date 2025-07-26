@@ -1,0 +1,11 @@
+# Couchbase Python SDK with vector search support
+couchbase==4.4
+
+# Sentence transformer for encoding text into vectors
+sentence-transformers==2.6.1
+
+# Streamlit for building the UI
+streamlit==1.34.0
+
+# Numpy for numerical operations
+numpy==1.26.4
